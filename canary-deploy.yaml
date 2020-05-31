@@ -1,0 +1,58 @@
+apiVersion: tekton.dev/v1beta1
+kind: Task
+metadata:
+  name: canary-deploy
+spec:
+  workspaces:
+    - name: istio-manifest-dir
+  params:
+    - name: VS_NAME
+      description: The virtual service name to be patched
+      type: string
+      default: ""
+    - name: V1_WEIGHT
+      description: The traffic percentage to be sent to version v1
+      type: string
+      default: ""
+    - name: V2_WEIGHT
+      description: The traffic percentage to be sent to version v2
+      type: string
+      default: ""
+  steps:
+    - name: canary-deploy
+      image: quay.io/openshift/origin-cli:latest
+      workingDir: $(workspaces.istio-manifest-dir.path)
+      script: |
+        #!/usr/bin/env bash
+
+        cat <<EOF >/tmp/patch.yaml
+        apiVersion: networking.istio.io/v1alpha3
+        kind: VirtualService
+        metadata:
+          name: $(params.VS_NAME)
+        spec:
+          hosts:
+            - "*"
+          gateways:
+            - app-gateway
+          http:
+            - route:
+                - destination:
+                    host: myapp
+                    subset: v1
+                  weight: $(params.V1_WEIGHT)
+                - destination:
+                    host: myapp
+                    subset: v2
+                  weight: $(params.V2_WEIGHT)
+        EOF
+
+        if [ -n "$(params.V1_WEIGHT)" -a -n "$(params.V2_WEIGHT)" ]; then
+          kubectl replace -f /tmp/patch.yaml
+        else 
+          kubectl apply -f ./
+        fi
+
+        export INGRESS_PORT=$(kubectl -n istio-system get service istio-ingressgateway -o jsonpath='{.spec.ports[?(@.name=="http2")].nodePort}')
+        echo "NodePort is $INGRESS_PORT"
+        kubectl describe virtualservice $VS_NAME

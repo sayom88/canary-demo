@@ -1,0 +1,22 @@
+apiVersion: tekton.dev/v1beta1
+kind: PipelineRun
+metadata:
+  name: canary-demo-run
+spec:
+  pipelineRef:
+    name: canary-demo
+  workspaces:
+    - name: deployment-manifest-dir
+      configMap:
+        name: deployment
+    - name: istio-manifest-dir
+      configMap:
+        name: istio
+    - name: shared-workspace
+      volumeClaimTemplate:
+        spec:
+          accessModes:
+            - ReadWriteOnce
+          resources:
+            requests:
+              storage: 200Mi

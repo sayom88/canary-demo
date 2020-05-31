@@ -1,0 +1,131 @@
+---
+apiVersion: tekton.dev/v1beta1
+kind: Pipeline
+metadata:
+  name: canary-demo
+spec:
+  workspaces:
+    - name: deployment-manifest-dir
+    - name: istio-manifest-dir
+    - name: shared-workspace
+  tasks:
+    - name: build-deploy
+      taskRef:
+        name: build-deploy
+      workspaces:
+        - name: deployment-manifest-dir
+          workspace: deployment-manifest-dir
+    - name: fetch-repository
+      taskRef:
+        name: git-clone
+      params:
+        - name: url
+          value: https://github.com/sayom88/canarytestseleniumautomation
+        - name: subdirectory
+          value: ""
+        - name: deleteExisting
+          value: "true"
+      workspaces:
+        - name: output
+          workspace: shared-workspace
+    - name: canary-deploy-100
+      taskRef:
+        name: canary-deploy
+      runAfter:
+        - build-deploy
+      workspaces:
+        - name: istio-manifest-dir
+          workspace: istio-manifest-dir
+    - name: canary-test
+      taskRef:
+        name: canary-test
+      workspaces:
+        - name: shared-workspace
+          workspace: shared-workspace
+      runAfter:
+        - fetch-repository
+        - canary-deploy-100
+    - name: canary-50
+      taskRef:
+        name: canary-deploy
+      runAfter:
+        - canary-test
+      workspaces:
+        - name: istio-manifest-dir
+          workspace: istio-manifest-dir
+      params:
+        - name: VS_NAME
+          value: myapp
+        - name: V1_WEIGHT
+          value: "50"
+        - name: V2_WEIGHT
+          value: "50"
+    - name: canary-stop
+      taskRef:
+        name: canary-deploy
+      runAfter:
+        - canary-50
+      workspaces:
+        - name: istio-manifest-dir
+          workspace: istio-manifest-dir
+      params:
+        - name: VS_NAME
+          value: myapp
+        - name: V1_WEIGHT
+          value: "100"
+        - name: V2_WEIGHT
+          value: "0"
+# ---
+# apiVersion: tekton.dev/v1beta1
+# kind: Pipeline
+# metadata:
+#   name: canary-demo
+# spec:
+#   workspaces:
+#     - name: deployment-manifest-dir
+#     - name: istio-manifest-dir
+#   tasks:
+#     - name: build-deploy
+#       taskRef:
+#         name: build-deploy
+#       workspaces:
+#         - name: deployment-manifest-dir
+#           workspace: deployment-manifest-dir
+#     - name: canary-deploy-100
+#       taskRef:
+#         name: canary-deploy
+#       runAfter:
+#         - build-deploy
+#       workspaces:
+#         - name: istio-manifest-dir
+#           workspace: istio-manifest-dir
+#     - name: canary-50
+#       taskRef:
+#         name: canary-deploy
+#       runAfter:
+#         - canary-deploy-100
+#       workspaces:
+#         - name: istio-manifest-dir
+#           workspace: istio-manifest-dir
+#       params:
+#         - name: VS_NAME
+#           value: myapp
+#         - name: V1_WEIGHT
+#           value: "50"
+#         - name: V2_WEIGHT
+#           value: "50"
+#     - name: canary-stop
+#       taskRef:
+#         name: canary-deploy
+#       runAfter:
+#         - canary-50
+#       workspaces:
+#         - name: istio-manifest-dir
+#           workspace: istio-manifest-dir
+#       params:
+#         - name: VS_NAME
+#           value: myapp
+#         - name: V1_WEIGHT
+#           value: "100"
+#         - name: V2_WEIGHT
+#           value: "0"
